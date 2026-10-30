@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eff5ee">
+  <meta name="description" content="小小记账，轻轻松松记下每一笔。你的私人离线记账本。">
+  <title>小小记账 · 每一笔，都算数</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="./" aria-label="小小记账首页"><span class="brand-icon" aria-hidden="true">✿</span><span>小小记账<small>每一笔，都算数</small></span></a>
+      <button class="icon-button" id="open-settings" aria-label="打开预算设置" title="预算设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg></button>
+    </header>
+
+    <main>
+      <div id="storage-error" class="error-banner" role="alert" hidden></div>
+      <section class="overview" data-page="home" aria-labelledby="overview-heading">
+        <div class="section-top"><h1 id="overview-heading">把日子，过得有数</h1><time id="today-label"></time></div>
+        <article class="remaining-card" id="remaining-card">
+          <div class="remaining-copy"><h2>今天还能花</h2><p class="hero-amount" id="today-remaining">¥0.00</p><p class="budget-caption">今日建议 <span id="today-suggested">¥0.00</span><span class="dot">·</span>本月还剩 <span id="remaining-days">0</span> 天</p></div>
+          <span class="sprout" aria-hidden="true"><span></span></span>
+          <p class="budget-message" id="budget-message">慢慢记，把生活照顾好。</p>
+        </article>
+
+        <div class="stats-grid">
+          <article class="stat-card peach"><h2><span aria-hidden="true">↗</span>今日消费</h2><p id="today-spend">¥0.00</p><small>支出 − 退款</small></article>
+          <article class="stat-card lavender"><h2><span aria-hidden="true">▦</span>本月消费</h2><p id="month-spend">¥0.00</p><small>每一笔小日常</small></article>
+          <article class="stat-card yellow"><h2><span aria-hidden="true">↙</span>本月收入</h2><p id="month-income">¥0.00</p><small>记录下来的小收获</small></article>
+          <article class="stat-card blue"><h2><span aria-hidden="true">♡</span>本月预计能攒</h2><p id="projected-savings">¥0.00</p><small>按当前消费计算</small></article>
+        </div>
+      </section>
+
+      <section class="entry-card" data-page="entry" hidden aria-labelledby="entry-heading">
+        <div class="entry-top"><h2 id="entry-heading">记一笔</h2><span>三秒记下，轻松放下</span></div>
+        <div class="type-switch" role="group" aria-label="记账类型">
+          <button type="button" class="type-button active" data-type="expense" aria-pressed="true">支出</button>
+          <button type="button" class="type-button" data-type="income" aria-pressed="false">收入</button>
+          <button type="button" class="type-button" data-type="refund" aria-pressed="false">退款</button>
+          <button type="button" class="type-button" data-type="transfer" aria-pressed="false">转账</button>
+        </div>
+        <div class="amount-field"><label for="amount">金额（元）</label><div><span aria-hidden="true">¥</span><input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" maxlength="13" aria-describedby="entry-hint entry-error"></div></div>
+        <div class="keypad" role="group" aria-label="金额数字键盘">
+          <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+          <button type="button" data-key="."><span aria-hidden="true">.</span><span class="sr-only">小数点</span></button><button type="button" data-key="0">0</button><button type="button" class="backspace" data-key="backspace" aria-label="删除一位">⌫</button>
+        </div>
+        <div class="entry-options"><label class="note-label"><span aria-hidden="true">✎</span><input id="note" type="text" placeholder="加个备注（选填）" maxlength="120" aria-label="备注（选填）"></label><label class="date-label"><span class="sr-only">记账日期</span><input id="entry-date" type="date" required aria-label="记账日期"></label></div>
+        <div class="category-heading"><h3>选个分类，就记好啦</h3><span id="entry-hint">输入金额后，点分类保存</span></div>
+        <div id="categories" class="categories" role="group" aria-label="选择分类并保存"></div>
+        <p class="inline-error" id="entry-error" role="alert" hidden></p>
+      </section>
+
+      <section class="recent-section" data-page="home" aria-labelledby="recent-heading">
+        <div class="section-top"><h2 id="recent-heading">最近的小日常</h2><span id="record-count">0 笔记录</span></div>
+        <div id="empty-state" class="empty-state"><span aria-hidden="true">♧</span><p>从第一笔开始，给生活留个小脚印</p></div>
+        <ul id="recent-list" class="recent-list"></ul>
+      </section>
+      <section class="details-page" data-page="details" hidden aria-labelledby="details-heading">
+        <div class="section-top"><h1 id="details-heading">每一笔小日常</h1><span id="month-record-count"></span></div>
+        <div class="month-switcher" role="group" aria-label="切换账单月份">
+          <button type="button" id="previous-month" aria-label="上个月">‹</button>
+          <label><span class="sr-only">账单月份</span><input type="month" id="list-month" required aria-label="账单月份"></label>
+          <button type="button" id="next-month" aria-label="下个月">›</button>
+          <button type="button" id="current-month">本月</button>
+        </div>
+        <article class="panel breakdown-card" aria-labelledby="breakdown-heading">
+          <div class="section-top"><h2 id="breakdown-heading">分类净消费</h2><strong id="category-total"></strong></div>
+          <p class="help-text">支出减退款，收入和转账不计入。退款请归入原消费分类。</p>
+          <p id="category-empty" class="help-text">这个月还没有消费记录。</p>
+          <div id="category-bars"></div>
+          <p class="help-text" id="percentage-help" hidden>净消费合计不大于零时，不计算占比。</p>
+        </article>
+        <div id="transactions-empty" class="empty-state"><p>这个月还没有记录，去记一笔或导入账单吧。</p></div>
+        <div id="transaction-groups"></div>
+      </section>
+      <section class="settings-page" data-page="settings" hidden aria-labelledby="settings-page-heading">
+        <h1 id="settings-page-heading">设置</h1>
+        <article class="panel budget-settings">
+          <h2>我的月度预算</h2>
+    <form id="settings-form">
+      <label>月收入 <span>每月计划收入</span><div class="settings-input"><span>¥</span><input name="monthlyIncome" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" required></div></label>
+      <label>固定支出 <span>房租、订阅等</span><div class="settings-input"><span>¥</span><input name="fixedExpenses" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" required></div></label>
+      <label>储蓄目标 <span>想留给未来的自己</span><div class="settings-input"><span>¥</span><input name="savingsGoal" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" required></div></label>
+      <label>备用金 <span>留一点，应对小意外</span><div class="settings-input"><span>¥</span><input name="reserve" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" required></div></label>
+      <p class="settings-help">可花预算 = 月收入 − 固定支出 − 储蓄目标 − 备用金。未花完的预算会自动留给之后的日子。固定支出已在预算中扣除，请勿重复记为日常消费。</p>
+      <p class="inline-error" id="settings-error" role="alert" hidden></p>
+      <button class="save-settings" type="submit" data-requires-storage>保存预算 <span aria-hidden="true">♡</span></button>
+    </form>
+        </article>
+        <article class="panel">
+          <h2>导入账单</h2>
+          <p class="help-text">选择原始 CSV 账单，自动识别 UTF-8 / GBK 编码。先预览，确认后保存到当前浏览器。</p>
+          <label class="field-label">账单来源<select id="import-source"><option value="wechat">微信支付</option><option value="alipay">支付宝</option></select></label>
+          <label class="field-label">选择 CSV 文件<input type="file" id="import-file" accept=".csv,text/csv" data-requires-storage></label>
+          <p class="inline-error" id="import-error" role="alert" hidden></p>
+          <div id="import-preview" hidden>
+            <p id="import-summary" role="status"></p>
+            <ul id="import-sample" class="help-text"></ul>
+            <p class="help-text">已排除失败、关闭交易；按日期、时间、金额、交易对方去重（包含文件内重复）。</p>
+            <button type="button" id="confirm-import" class="primary-button" data-requires-storage>确认导入</button>
+            <button type="button" id="cancel-import" class="plain-button">取消</button>
+          </div>
+        </article>
+        <article class="panel">
+          <h2>备份与恢复</h2>
+          <p class="help-text">JSON 备份包含全部记录和预算设置。恢复会覆盖当前数据，建议先导出备份。</p>
+          <button type="button" id="export-backup" class="primary-button" data-requires-storage>导出 JSON 备份</button>
+          <label class="field-label">从 JSON 恢复<input type="file" id="restore-file" accept=".json,application/json"></label>
+          <p class="inline-error" id="backup-error" role="alert" hidden></p>
+        </article>
+        <p class="help-text">数据只保存在当前浏览器，不会上传。清除浏览器数据、更换设备或网址前，请导出备份。</p>
+      </section>
+    </main>
+    <nav class="bottom-tabs" aria-label="主导航">
+      <button type="button" data-tab="home" aria-current="page"><span aria-hidden="true">⌂</span>首页</button>
+      <button type="button" data-tab="entry"><span aria-hidden="true">＋</span>记一笔</button>
+      <button type="button" data-tab="details"><span aria-hidden="true">≡</span>明细</button>
+      <button type="button" data-tab="settings"><span aria-hidden="true">⚙</span>设置</button>
+    </nav>
+    <footer>小小记账 · 数据只保存在当前浏览器</footer>
+  </div>
+
+  <dialog id="edit-dialog" aria-labelledby="edit-heading">
+    <div class="dialog-header"><h2 id="edit-heading">编辑记录</h2><button type="button" id="close-edit" class="icon-button" aria-label="关闭编辑">×</button></div>
+    <p class="help-text" id="edit-source"></p>
+    <form id="edit-form">
+      <label class="field-label">类型<select name="type"><option value="expense">支出</option><option value="income">收入</option><option value="refund">退款</option><option value="transfer">转账</option></select></label>
+      <label class="field-label">金额（元）<input name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" required></label>
+      <label class="field-label">日期<input name="date" type="date" required></label>
+      <label class="field-label">时间（选填）<input name="time" type="time" step="1"></label>
+      <label class="field-label">分类<input name="category" list="edit-category-options" required maxlength="80"></label>
+      <datalist id="edit-category-options"><option value="餐饮"><option value="交通"><option value="购物"><option value="学习"><option value="日用"><option value="娱乐"><option value="其他"><option value="生活费"><option value="兼职"><option value="红包"><option value="其他收入"><option value="转账"></datalist>
+      <label class="field-label">交易对方<input name="counterparty" type="text"></label>
+      <label class="field-label">备注<input name="note" type="text"></label>
+      <p class="inline-error" id="edit-error" role="alert" hidden></p>
+      <button type="submit" class="primary-button" data-requires-storage>保存修改</button>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="error-banner">请启用 JavaScript 以使用本地记账功能。</p></noscript>
+</body>
+</html>
