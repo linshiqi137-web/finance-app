@@ -154,7 +154,7 @@ test('offline shell references exist and service worker serves them without a co
     },
     caches: {
       open: async () => cache,
-      keys: async () => ['little-ledger-shell-old', 'another-app-cache', 'little-ledger-shell-v1', 'little-ledger-shell-v2'],
+      keys: async () => ['little-ledger-shell-old', 'another-app-cache', 'little-ledger-shell-v1', 'little-ledger-shell-v3'],
       delete: async key => { deleted.push(key); },
     },
     fetch: async () => { throw new Error('offline'); },

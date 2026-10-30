@@ -1,4 +1,5 @@
 import { isValidDate } from './budget.js';
+import { guessCategory } from './importers.js';
 
 const STORAGE_KEY = 'little-ledger:v1';
 const MAX_AMOUNT = 9_999_999_999.99;
@@ -24,6 +25,8 @@ function validTransaction(item) {
     validMoney(item.amount) && item.amount > 0 && isValidDate(item.date) &&
     (item.time === undefined || (typeof item.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(item.time))) &&
     ['manual', 'wechat', 'alipay'].includes(item.source) &&
+    (item.automatic === undefined || typeof item.automatic === 'boolean') &&
+    (item.confidence === undefined || ['high', 'low'].includes(item.confidence)) &&
     ['category', 'note', 'counterparty', 'createdAt'].every(key => typeof item[key] === 'string');
 }
 
@@ -104,4 +107,37 @@ export function saveImportedTransactions(incoming) {
   const transactions = [...state.transactions, ...incoming];
   validateBackup({ ...state, transactions, version: 1 });
   return persist({ ...state, transactions });
+}
+
+// One durable write before native ack. Stable IDs also cover a crash between save and ack.
+export function saveNotificationTransactions(pending) {
+  if (!Array.isArray(pending)) throw new Error('通知队列格式异常，尚未确认任何通知。');
+  const state = loadState();
+  const seen = new Set(state.transactions.map(item => item.id));
+  const incoming = [];
+  const ids = [];
+  for (const item of pending) {
+    if (!item || typeof item.id !== 'string' || !item.id ||
+        !['wechat', 'alipay'].includes(item.source) || !['expense', 'income', 'transfer'].includes(item.type) ||
+        !validMoney(item.amount) || item.amount === 0 || !Number.isSafeInteger(item.timestamp) ||
+        !['high', 'low'].includes(item.confidence) || typeof item.text !== 'string' ||
+        typeof item.counterparty !== 'string') throw new Error('通知记录格式异常，请保留数据后重试。');
+    const date = new Date(item.timestamp);
+    if (!Number.isFinite(date.getTime())) throw new Error('通知日期无效。');
+    const id = `notification:${item.source}:${item.id}`;
+    ids.push(item.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    incoming.push({
+      id, source: item.source, type: item.type, amount: item.amount,
+      counterparty: item.counterparty, note: item.text,
+      category: item.type === 'transfer' ? '转账' : guessCategory(`${item.counterparty} ${item.text}`),
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      time: date.toTimeString().slice(0, 8), createdAt: date.toISOString(),
+      automatic: true, confidence: item.confidence,
+    });
+  }
+  const next = { ...state, transactions: [...state.transactions, ...incoming] };
+  validateBackup({ ...next, version: 1 });
+  return { state: incoming.length ? persist(next) : state, ids, added: incoming.length };
 }

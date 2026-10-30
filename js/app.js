@@ -1,9 +1,11 @@
 import { computeDashboard, computeCategoryBreakdown, isValidDate } from './budget.js';
 import { DEFAULT_SETTINGS, loadState, saveSettings, saveTransaction, updateTransaction,
-  deleteTransaction, saveImportedTransactions, exportBackup, validateBackup, restoreBackup } from './store.js';
+  deleteTransaction, saveImportedTransactions, saveNotificationTransactions, exportBackup, validateBackup, restoreBackup } from './store.js';
 import { parseWechatCsv, parseAlipayCsv, decodeBillBuffer, mergeTransactions } from './importers.js';
 
 const $ = selector => document.querySelector(selector);
+const androidBridge = window.AndroidBridge;
+const appName = androidBridge ? '小凪记账' : '小小记账';
 const money = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 });
 const formatMoney = value => money.format(Math.abs(value) < 0.005 ? 0 : value);
 const expenseCategories = [['餐饮', '♨'], ['交通', '⇄'], ['购物', '♧'], ['娱乐', '♫'], ['学习', '▤'], ['日用', '⌂'], ['其他', '···']];
@@ -56,7 +58,7 @@ function navigate(page) {
     if (button.dataset.tab === page) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
-  document.title = `${{ home: '首页', entry: '记一笔', details: '明细', settings: '设置' }[page]} · 小小记账`;
+  document.title = `${{ home: '首页', entry: '记一笔', details: '明细', settings: '设置' }[page]} · ${appName}`;
 }
 
 function renderDashboard() {
@@ -105,6 +107,13 @@ function transactionRow(item, actions = false) {
     typeNames[item.type], item.counterparty, item.note].filter(Boolean).join(' · ');
   description.title = description.textContent;
   details.append(title, source, description);
+  if (item.automatic) {
+    const badge = document.createElement('span');
+    badge.className = 'source-tag auto-tag';
+    badge.textContent = '自动';
+    badge.title = item.confidence === 'low' ? '通知信息有限，请核对金额和分类' : '来自支付通知，分类可编辑';
+    source.after(badge);
+  }
   const amount = document.createElement('span');
   const incoming = item.type === 'income' || item.type === 'refund';
   amount.className = `transaction-amount${incoming ? ' positive' : ''}`;
@@ -368,6 +377,7 @@ $('#export-backup').addEventListener('click', () => {
   showError($('#backup-error'));
   try {
     const backup = exportBackup(loadState());
+    if (androidBridge?.saveBackup) { androidBridge.saveBackup(backup); return; }
     const url = URL.createObjectURL(new Blob([backup], { type: 'application/json;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
@@ -498,7 +508,38 @@ window.addEventListener('storage', event => {
   }
 });
 
-if ('serviceWorker' in navigator && window.isSecureContext) {
+function syncAndroid() {
+  if (!androidBridge) return;
+  try {
+    $('#android-setup').hidden = androidBridge.isNotificationAccessGranted();
+    if (!available) return;
+    const result = saveNotificationTransactions(JSON.parse(androidBridge.getPendingTransactions()));
+    state = result.state;
+    // A failed ack leaves IDs in the queue; the next pull will acknowledge without inserting twice.
+    androidBridge.ackTransactions(JSON.stringify(result.ids));
+    if (result.added) { render(); toast(`已自动记下 ${result.added} 笔，分类可在明细中修改`); }
+  } catch (error) {
+    render();
+    showError($('#android-error'), `自动记账暂未完成：${error.message || error}。通知会保留以便重试。`);
+    return;
+  }
+  showError($('#android-error'));
+}
+
+if (androidBridge) {
+  $('.brand > span:last-child').firstChild.textContent = appName;
+  $('.brand').setAttribute('aria-label', `${appName}首页`);
+  $('#android-settings').hidden = false;
+  document.querySelectorAll('[data-android-notifications]').forEach(button =>
+    button.addEventListener('click', () => androidBridge.openNotificationSettings()));
+  document.querySelectorAll('[data-android-battery]').forEach(button =>
+    button.addEventListener('click', () => androidBridge.openBatterySettings()));
+  window.onAndroidResume = () => { refreshDay(); syncAndroid(); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAndroid(); });
+  syncAndroid();
+}
+
+if (!androidBridge && 'serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('./sw.js').catch(() => {
     showError($('#storage-error'), '离线缓存未启用；记账仍可使用，请联网重新打开以重试。');
   });
