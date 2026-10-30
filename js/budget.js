@@ -12,13 +12,21 @@ function cents(value) {
   return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) : 0;
 }
 
+export function isConfirmedTransaction(item) {
+  return item.status === undefined || item.status === 'confirmed';
+}
+
+function accountingType(item) {
+  return item.own_account || item.direction === 'withdraw' ? 'transfer' : item.type;
+}
+
 export function computeCategoryBreakdown(transactions, month) {
   if (!isValidDate(`${month}-01`)) throw new TypeError('请输入有效月份 YYYY-MM');
   const totals = new Map();
   for (const item of transactions) {
-    if (!isValidDate(item.date) || !item.date.startsWith(`${month}-`) || !['expense', 'refund'].includes(item.type)) continue;
+    if (!isConfirmedTransaction(item) || !isValidDate(item.date) || !item.date.startsWith(`${month}-`) || !['expense', 'refund'].includes(accountingType(item))) continue;
     const category = item.category || '其他';
-    totals.set(category, (totals.get(category) || 0) + cents(item.amount) * (item.type === 'refund' ? -1 : 1));
+    totals.set(category, (totals.get(category) || 0) + cents(item.amount) * (accountingType(item) === 'refund' ? -1 : 1));
   }
   const totalCents = [...totals.values()].reduce((sum, amount) => sum + amount, 0);
   const categories = [...totals].map(([category, amount]) => ({
@@ -43,10 +51,11 @@ export function computeDashboard(transactions, settings, todayDateString) {
   let income = 0;
 
   for (const transaction of transactions) {
-    if (!isValidDate(transaction.date) || !transaction.date.startsWith(month) || !TYPES.has(transaction.type)) continue;
+    if (!isConfirmedTransaction(transaction) || !isValidDate(transaction.date) || !transaction.date.startsWith(month) || !TYPES.has(transaction.type)) continue;
     const amount = cents(transaction.amount);
-    if (transaction.type === 'income') income += amount;
-    const net = transaction.type === 'expense' ? amount : transaction.type === 'refund' ? -amount : 0;
+    const type = accountingType(transaction);
+    if (type === 'income') income += amount;
+    const net = type === 'expense' ? amount : type === 'refund' ? -amount : 0;
     monthNet += net;
     if (transaction.date === todayDateString) todayNet += net;
     if (transaction.date < todayDateString) beforeTodayNet += net;

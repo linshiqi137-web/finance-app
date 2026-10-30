@@ -50,5 +50,20 @@ class AndroidBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun getNotificationDiagnostics(): String = NotificationDiagnostics(activity).read()
+
+    @JavascriptInterface
+    fun clearNotificationDiagnostics() { NotificationDiagnostics(activity).clear() }
+
+    @JavascriptInterface
+    fun copyNotificationDiagnostics() = activity.runOnUiThread {
+        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("支付通知诊断", NotificationDiagnostics(activity).read()))
+    }
+
+    @JavascriptInterface
+    fun resolvePaymentEvent(eventId: String, amount: String) { queue.resolve(eventId, amount) }
+
+    @JavascriptInterface
     fun saveBackup(json: String) { activity.saveBackup(json) }
 }

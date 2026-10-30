@@ -103,8 +103,12 @@ node tests/fixtures/generate-gbk.mjs
 
 `js/importers.js` 导出纯解析器 `parseWechatCsv`、`parseAlipayCsv`、解码器 `decodeBillBuffer`、`dedupKey` 和 `mergeTransactions`。合并函数返回 `{ added, skipped }`：`added` 是新增记录数组，`skipped` 是重复记录数量，不修改输入或存储。
 
-新增离线资源时，需要更新 `sw.js` 的 `SHELL` 列表并递增缓存版本。当前为 `little-ledger-shell-v4`，激活时清理旧版本缓存，保留其他应用的缓存。
+新增离线资源时，需要更新 `sw.js` 的 `SHELL` 列表并递增缓存版本。当前为 `little-ledger-shell-v5`，激活时清理旧版本缓存，保留其他应用的缓存。
 
-## Android APK v0.3.0
+## Android APK v0.4.0
 
-原生 Android 工程 [`android/`](android/README.md)，应用名「小凪记账」。支持通过无障碍识别微信／支付宝可见的支付、转账与微信红包页面、微信支付凭证，通知作为补充；两个渠道共享三分钟去重，返回应用后自动入账并显示「自动」。首次引导提供无障碍设置入口、开启状态与本机隐私说明，应用没有联网权限。浏览器版不依赖 AndroidBridge，使用方式保持不变。构建步骤、解析与去重规则、测试和手机设置详见 Android 说明。
+原生 Android 工程 [`android/`](android/README.md)，包名 `com.xiaonagi.jizhang`，版本 `0.4.0`（versionCode 4），应用名「小凪记账」。保留 v0.3 微信／支付宝支付、转账、红包、凭证识别及共享三分钟去重。新增完整通知 extras 与活动子通知诊断、统一事件、微信无金额通知的「待补全」和可见微信支付消息的保守时间匹配。只有已确认事件参与统计，提现和本人账户划转永不计收支；方向明确的待补全记录可手动填写金额。
+
+**隐藏「诊断」入口：Android 应用的「设置 → 支付自动记账」中，连续点击 `v0.4.0` 五次。** 可查看、复制、清空最近 50 条本机通知快照。无障碍不会自动导航或点击；需用户自行显示微信支付消息及明确时间，时间/方向/商户匹配存在歧义时继续待补全。原始诊断只保存在应用内，不上传，也不放入账本备份。
+
+APK 使用 v0.3 的同一 debug keystore，无 INTERNET 权限，交付路径为 `/workspace/finance-app/dist/xiaonagi-jizhang.apk`。浏览器版无需 AndroidBridge，仍可独立使用。构建、签名指纹、事件字段、匹配窗口、测试与实机限制详见 [Android 说明](android/README.md)。

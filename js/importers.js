@@ -105,7 +105,8 @@ function parseBill(text, source) {
       throw new Error(`账单金额无效：${timestamp}`);
     }
     const direction = get(row, '收/支');
-    const type = /退款/.test(`${kind} ${status}`) ? 'refund'
+    const ownAccount = /零钱提现|提现|本人账户|本人银行卡|同名账户|自己账户|自有账户|零钱通转[入出]|余额宝转[入出]/.test(`${kind} ${get(row, '交易对方')} ${status}`);
+    const type = ownAccount ? 'transfer' : /退款/.test(`${kind} ${status}`) ? 'refund'
       : direction === '支出' ? 'expense' : direction === '收入' ? 'income' : 'transfer';
     const counterparty = get(row, '交易对方');
     const product = get(row, '商品', '商品说明');

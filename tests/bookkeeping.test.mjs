@@ -154,7 +154,7 @@ test('offline shell references exist and service worker serves them without a co
     },
     caches: {
       open: async () => cache,
-      keys: async () => ['little-ledger-shell-old', 'another-app-cache', 'little-ledger-shell-v1', 'little-ledger-shell-v3', 'little-ledger-shell-v4'],
+      keys: async () => ['little-ledger-shell-old', 'another-app-cache', 'little-ledger-shell-v1', 'little-ledger-shell-v3', 'little-ledger-shell-v4', 'little-ledger-shell-v5'],
       delete: async key => { deleted.push(key); },
     },
     fetch: async () => { throw new Error('offline'); },
@@ -167,7 +167,7 @@ test('offline shell references exist and service worker serves them without a co
   handlers.activate({ waitUntil: promise => { pending = promise; } });
   await pending;
   assert.equal(claimed, true);
-  assert.deepEqual(deleted, ['little-ledger-shell-old', 'little-ledger-shell-v1', 'little-ledger-shell-v3']);
+  assert.deepEqual(deleted, ['little-ledger-shell-old', 'little-ledger-shell-v1', 'little-ledger-shell-v3', 'little-ledger-shell-v4']);
   for (const [url, expected] of [
     ['https://ledger.test/', '<!doctype html>'],
     ['https://ledger.test/js/app.js', 'computeDashboard'],

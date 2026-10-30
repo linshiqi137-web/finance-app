@@ -19,13 +19,26 @@ function validSettings(settings) {
     Object.keys(DEFAULT_SETTINGS).every(key => validMoney(settings[key]));
 }
 
+const DIRECTIONS = ['expense', 'income', 'transfer_in', 'transfer_out', 'refund', 'withdraw'];
+const STATUSES = ['candidate', 'confirmed', 'unresolved', 'reconciled', 'duplicate'];
+function validEvent(item) {
+  if (item.event_id === undefined) return item.status === undefined;
+  return typeof item.event_id === 'string' && item.event_id.length > 0 &&
+    Number.isSafeInteger(item.event_time) && Number.isFinite(new Date(item.event_time).getTime()) &&
+    DIRECTIONS.includes(item.direction) && STATUSES.includes(item.status) &&
+    typeof item.merchant === 'string' && (item.matched_event_id === null || typeof item.matched_event_id === 'string') &&
+    (item.own_account === undefined || typeof item.own_account === 'boolean');
+}
+
 function validTransaction(item) {
   return item && typeof item.id === 'string' && item.id.length > 0 &&
     ['expense', 'income', 'transfer', 'refund'].includes(item.type) &&
-    validMoney(item.amount) && item.amount > 0 && isValidDate(item.date) &&
+    validEvent(item) && ((validMoney(item.amount) && item.amount > 0) ||
+      (item.amount === null && ['candidate', 'unresolved', 'reconciled', 'duplicate'].includes(item.status))) && isValidDate(item.date) &&
     (item.time === undefined || (typeof item.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(item.time))) &&
     ['manual', 'wechat', 'alipay'].includes(item.source) &&
     (item.automatic === undefined || typeof item.automatic === 'boolean') &&
+    (item.manually_filled === undefined || typeof item.manually_filled === 'boolean') &&
     (item.confidence === undefined || ['high', 'low'].includes(item.confidence)) &&
     ['category', 'note', 'counterparty', 'createdAt'].every(key => typeof item[key] === 'string');
 }
@@ -33,7 +46,8 @@ function validTransaction(item) {
 export function validateBackup(value) {
   if (!value || value.version !== 1 || !Array.isArray(value.transactions) ||
       !value.transactions.every(validTransaction) || !validSettings(value.settings) ||
-      new Set(value.transactions.map(item => item.id)).size !== value.transactions.length) {
+      new Set(value.transactions.map(item => item.id)).size !== value.transactions.length ||
+      new Set(value.transactions.filter(item => item.event_id).map(item => item.event_id)).size !== value.transactions.filter(item => item.event_id).length) {
     throw new Error('备份格式无效或版本不受支持，请选择本应用导出的 JSON 备份。');
   }
   return { transactions: value.transactions.map(item => ({ ...item })),
@@ -113,6 +127,7 @@ export function saveImportedTransactions(incoming) {
 export function saveNotificationTransactions(pending) {
   if (!Array.isArray(pending)) throw new Error('自动记账队列格式异常，尚未确认任何记录。');
   const state = loadState();
+  if (pending.some(item => item?.event_id !== undefined)) return savePaymentEvents(pending, state);
   const seen = new Set(state.transactions.map(item => item.id));
   const incoming = [];
   const ids = [];
@@ -140,4 +155,61 @@ export function saveNotificationTransactions(pending) {
   const next = { ...state, transactions: [...state.transactions, ...incoming] };
   validateBackup({ ...next, version: 1 });
   return { state: incoming.length ? persist(next) : state, ids, added: incoming.length };
+}
+
+// Delivery IDs belong to native queue revisions; event_id identifies the durable event.
+// A terminal event never regresses when an old unacked delivery is replayed.
+function savePaymentEvents(pending, state) {
+  const transactions = state.transactions.map(item => ({ ...item }));
+  const ids = [];
+  let added = 0, changed = false;
+  for (const raw of pending) {
+    const event = raw?.event_id === undefined && raw && typeof raw.text === 'string' && typeof raw.counterparty === 'string' ? {
+      ...raw, event_id: raw.id, event_time: raw.timestamp, merchant: raw.counterparty,
+      direction: raw.type === 'transfer' ? 'transfer_out' : raw.type,
+      status: 'confirmed', matched_event_id: null,
+    } : raw;
+    if (!event || typeof event.id !== 'string' || !event.id || !validEvent(event) ||
+        !['wechat', 'alipay'].includes(event.source) || !['high', 'low'].includes(event.confidence) ||
+        !['expense', 'income', 'transfer', 'refund'].includes(event.type) ||
+        !((validMoney(event.amount) && event.amount > 0) || (event.amount === null && event.status !== 'confirmed'))) {
+      throw new Error('自动记账事件格式异常，尚未确认任何记录。');
+    }
+    ids.push(event.id);
+    const index = transactions.findIndex(item => item.event_id === event.event_id || item.id === `notification:${event.source}:${event.event_id}`);
+    const previous = transactions[index];
+    if (previous && (previous.status !== 'unresolved' && previous.status !== 'candidate' || previous.status === event.status)) continue;
+    const date = new Date(event.event_time);
+    const type = event.direction === 'withdraw' || event.own_account ? 'transfer' : event.type;
+    const item = {
+      id: previous?.id || `notification:${event.source}:${event.event_id}`,
+      event_id: event.event_id, event_time: event.event_time, source: event.source,
+      amount: event.amount, merchant: event.merchant, direction: event.direction,
+      confidence: event.confidence,
+      status: event.status === 'confirmed' && transactions.some(other => other.event_id === event.matched_event_id && other.manually_filled) ? 'duplicate' : event.status,
+      matched_event_id: event.matched_event_id,
+      own_account: event.own_account || false, direction_known: event.direction_known !== false, ambiguous: event.ambiguous || false,
+      type, counterparty: event.merchant, note: event.text || previous?.note || '',
+      category: type === 'transfer' ? '转账' : guessCategory(`${event.merchant} ${event.text || ''}`),
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      time: date.toTimeString().slice(0, 8), createdAt: date.toISOString(), automatic: true,
+    };
+    if (previous) transactions[index] = item;
+    else { transactions.push(item); added++; }
+    changed = true;
+  }
+  const next = { ...state, transactions };
+  validateBackup({ ...next, version: 1 });
+  return { state: changed ? persist(next) : state, ids, added, changed };
+}
+
+export function fillUnresolvedEvent(id, amount) {
+  if (!validMoney(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6)
+    throw new Error('请填写大于零、最多两位小数的金额。');
+  const state = loadState();
+  const event = state.transactions.find(item => item.id === id && item.status === 'unresolved');
+  if (!event) throw new Error('这笔待补全事件已处理，请刷新后重试。');
+  if (event.direction_known === false) throw new Error('收支方向尚不明确，请显示微信支付凭证后再补全，或手动记账。');
+  const resolved = { ...event, amount, status: 'confirmed', manually_filled: true };
+  return updateTransaction(resolved);
 }

@@ -11,6 +11,7 @@ object PaymentParser {
         val amount: BigDecimal,
         val merchant: String,
         val confidence: String,
+        val context: String = "", // Ephemeral parser block, never stored by accessibility capture.
     )
 
     private const val NUMBER = "((?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]{1,2})?)(?![0-9.]|,[0-9])"
@@ -47,7 +48,7 @@ object PaymentParser {
         val amount = match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }
             ?.replace(",", "")?.toBigDecimalOrNull() ?: return null
         if (amount <= BigDecimal.ZERO || amount > BigDecimal("9999999999.99")) return null
-        return Payment(source, type, amount.setScale(2), merchant(normalized), if (direct != null) "high" else "low")
+        return Payment(source, type, amount.setScale(2), merchant(normalized), if (direct != null) "high" else "low", normalized)
     }
 
     private fun merchant(text: String): String {

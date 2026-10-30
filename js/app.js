@@ -1,6 +1,6 @@
-import { computeDashboard, computeCategoryBreakdown, isValidDate } from './budget.js';
+import { computeDashboard, computeCategoryBreakdown, isValidDate, isConfirmedTransaction } from './budget.js';
 import { DEFAULT_SETTINGS, loadState, saveSettings, saveTransaction, updateTransaction,
-  deleteTransaction, saveImportedTransactions, saveNotificationTransactions, exportBackup, validateBackup, restoreBackup } from './store.js';
+  deleteTransaction, saveImportedTransactions, saveNotificationTransactions, fillUnresolvedEvent, exportBackup, validateBackup, restoreBackup } from './store.js';
 import { parseWechatCsv, parseAlipayCsv, decodeBillBuffer, mergeTransactions } from './importers.js';
 
 const $ = selector => document.querySelector(selector);
@@ -58,6 +58,7 @@ function navigate(page) {
     if (button.dataset.tab === page) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
+  renderPending();
   document.title = `${{ home: '首页', entry: '记一笔', details: '明细', settings: '设置' }[page]} · ${appName}`;
 }
 
@@ -136,17 +137,20 @@ function transactionRow(item, actions = false) {
   return li;
 }
 
+function confirmedTransactions() { return state.transactions.filter(isConfirmedTransaction); }
+
 function renderRecent() {
   const list = $('#recent-list');
   list.replaceChildren();
-  $('#record-count').textContent = `${state.transactions.length} 笔记录`;
-  $('#empty-state').hidden = state.transactions.length > 0;
-  for (const item of sortedTransactions(state.transactions).slice(0, 5)) list.append(transactionRow(item));
+  const items = confirmedTransactions();
+  $('#record-count').textContent = `${items.length} 笔记录`;
+  $('#empty-state').hidden = items.length > 0;
+  for (const item of sortedTransactions(items).slice(0, 5)) list.append(transactionRow(item));
 }
 
 function renderDetails() {
   $('#list-month').value = selectedMonth;
-  const items = sortedTransactions(state.transactions.filter(item => item.date.startsWith(`${selectedMonth}-`)));
+  const items = sortedTransactions(confirmedTransactions().filter(item => item.date.startsWith(`${selectedMonth}-`)));
   $('#month-record-count').textContent = `${items.length} 笔记录`;
   $('#transactions-empty').hidden = items.length > 0;
   const groups = $('#transaction-groups');
@@ -195,10 +199,56 @@ function renderDetails() {
   }
 }
 
+function renderPending() {
+  const items = sortedTransactions(state.transactions.filter(item => item.status === 'unresolved'));
+  // navigate() controls the section visibility; only hide its contents when empty.
+  $('#pending-events').hidden = !items.length || $('[data-tab=home]').getAttribute('aria-current') !== 'page';
+  $('#pending-count').textContent = `${items.length} 笔`;
+  $('#pending-list').replaceChildren();
+  const directions = { expense: '支出', income: '收入', transfer_in: '转入', transfer_out: '转出', refund: '退款', withdraw: '提现（不计收支）' };
+  for (const item of items) {
+    const row = document.createElement('li');
+    const description = document.createElement('p');
+    description.textContent = `${item.date} ${item.time} · ${item.direction_known === false ? '方向待核对' : directions[item.direction]} · ${item.merchant || '金额待补全'}`;
+    const note = document.createElement('p');
+    note.className = 'help-text';
+    note.textContent = [item.ambiguous ? '合并通知，无法自动拆分。' : '', item.note].filter(Boolean).join(' ');
+    const form = document.createElement('form');
+    const label = document.createElement('label');
+    label.textContent = '金额（元）';
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'number', min: '0.01', max: '9999999999.99', step: '0.01', required: true, inputMode: 'decimal' });
+    label.append(input);
+    const save = document.createElement('button');
+    Object.assign(save, { type: 'submit', textContent: item.direction_known === false ? '等待明确凭证' : '补全金额', className: 'primary-button', disabled: !available || item.direction_known === false });
+    form.append(label, save);
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!available || !form.reportValidity()) return;
+      try {
+        state = fillUnresolvedEvent(item.id, Number(input.value));
+        syncManualFills();
+        render();
+        toast('已补全金额，可在明细中核对分类');
+      } catch (error) { showError($('#storage-error'), error.message); }
+    });
+    row.append(description, note, form);
+    $('#pending-list').append(row);
+  }
+}
+
+function syncManualFills() {
+  if (!androidBridge?.resolvePaymentEvent) return;
+  for (const item of state.transactions.filter(item => item.manually_filled)) {
+    androidBridge.resolvePaymentEvent(item.event_id, String(item.amount));
+  }
+}
+
 function render() {
   renderDashboard();
   renderRecent();
   renderDetails();
+  renderPending();
   if (pendingImport) renderImportPreview();
 }
 
@@ -518,11 +568,13 @@ function syncAndroid() {
       element.textContent = `无障碍自动记账：${accessibilityEnabled ? '已开启' : '未开启'} · 通知补充：${notificationEnabled ? '已开启' : '未开启'}`;
     });
     if (!available) return;
+    syncManualFills();
     const result = saveNotificationTransactions(JSON.parse(androidBridge.getPendingTransactions()));
     state = result.state;
     // A failed ack leaves IDs in the queue; the next pull will acknowledge without inserting twice.
     androidBridge.ackTransactions(JSON.stringify(result.ids));
-    if (result.added) { render(); toast(`已自动记下 ${result.added} 笔，分类可在明细中修改`); }
+    render();
+    if (result.added || result.changed) toast('自动记账事件已更新，请核对明细与待补全');
   } catch (error) {
     render();
     showError($('#android-error'), `自动记账暂未完成：${error.message || error}。待入账记录会保留以便重试。`);
@@ -545,6 +597,28 @@ if (androidBridge) {
     button.addEventListener('click', () => androidBridge.openBatterySettings()));
   window.onAndroidResume = () => { refreshDay(); syncAndroid(); };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAndroid(); });
+  let versionTaps = 0, lastVersionTap = 0;
+  const diagnostics = $('#diagnostics-dialog');
+  const refreshDiagnostics = () => {
+    try {
+      $('#diagnostics-content').textContent = `${androidBridge.getNotificationDiagnostics?.() || '[]'}\n\n本机事件状态\n${JSON.stringify(state.transactions.filter(item => item.event_id), null, 2)}`;
+    } catch (error) { $('#diagnostics-content').textContent = `读取失败：${error.message}`; }
+  };
+  $('#app-version').addEventListener('click', () => {
+    const now = Date.now();
+    versionTaps = now - lastVersionTap < 1500 ? versionTaps + 1 : 1;
+    lastVersionTap = now;
+    if (versionTaps >= 5) { versionTaps = 0; refreshDiagnostics(); diagnostics.showModal(); }
+  });
+  $('#close-diagnostics').addEventListener('click', () => diagnostics.close());
+  $('#refresh-diagnostics').addEventListener('click', refreshDiagnostics);
+  $('#copy-diagnostics').addEventListener('click', () => {
+    try { androidBridge.copyNotificationDiagnostics(); toast('通知诊断已复制'); }
+    catch (error) { toast(`复制失败：${error.message}`); }
+  });
+  $('#clear-diagnostics').addEventListener('click', () => {
+    androidBridge.clearNotificationDiagnostics(); refreshDiagnostics(); toast('通知诊断已清空');
+  });
   syncAndroid();
 }
 

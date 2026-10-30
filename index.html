@@ -68,6 +68,11 @@
         <p class="inline-error" id="entry-error" role="alert" hidden></p>
       </section>
 
+      <section class="panel pending-events" data-page="home" id="pending-events" hidden aria-labelledby="pending-heading">
+        <h2 id="pending-heading">待补全 <span id="pending-count"></span></h2>
+        <p class="help-text">通知未提供金额，暂不计入统计。手动打开微信支付服务号或消息列表，显示带明确时间的支付消息后可自动匹配；也可在此填写金额。提现及本人账户转账不计收支。</p>
+        <ul id="pending-list" class="recent-list"></ul>
+      </section>
       <section class="recent-section" data-page="home" aria-labelledby="recent-heading">
         <div class="section-top"><h2 id="recent-heading">最近的小日常</h2><span id="record-count">0 笔记录</span></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">♧</span><p>从第一笔开始，给生活留个小脚印</p></div>
@@ -95,6 +100,7 @@
         <h1 id="settings-page-heading">设置</h1>
         <article id="android-settings" class="panel" hidden>
           <h2>支付自动记账</h2>
+          <button type="button" id="app-version" class="plain-button">v0.4.0</button>
           <p class="help-text" data-android-status role="status"></p>
           <p class="help-text">识别微信、支付宝可见的支付页面，通知作为补充。数据只保存在本机，应用没有联网权限，不上传任何数据，不会点击或操作屏幕。可随时在系统设置中关闭服务。</p>
           <button type="button" class="primary-button" data-android-accessibility>无障碍自动记账</button>
@@ -146,6 +152,14 @@
     <footer>小小记账 · 数据只保存在当前浏览器</footer>
   </div>
 
+  <dialog id="diagnostics-dialog" aria-labelledby="diagnostics-heading">
+    <div class="dialog-header"><h2 id="diagnostics-heading">诊断</h2><button type="button" id="close-diagnostics" class="icon-button" aria-label="关闭诊断">×</button></div>
+    <p class="help-text">最近 50 条微信／支付宝通知快照，仅保存在本机，可能含交易及消息内容。点击复制才写入系统剪贴板；不会自动发送。</p>
+    <button type="button" id="refresh-diagnostics" class="primary-button">刷新</button>
+    <button type="button" id="copy-diagnostics" class="plain-button">复制通知诊断</button>
+    <button type="button" id="clear-diagnostics" class="plain-button">清空通知诊断</button>
+    <pre id="diagnostics-content" tabindex="0"></pre>
+  </dialog>
   <dialog id="edit-dialog" aria-labelledby="edit-heading">
     <div class="dialog-header"><h2 id="edit-heading">编辑记录</h2><button type="button" id="close-edit" class="icon-button" aria-label="关闭编辑">×</button></div>
     <p class="help-text" id="edit-source"></p>

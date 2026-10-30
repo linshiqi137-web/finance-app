@@ -71,7 +71,7 @@ object AccessibilityPaymentParser {
         val amount = match.groupValues.drop(1).firstOrNull(String::isNotEmpty)
             ?.replace(",", "")?.toBigDecimalOrNull() ?: return null
         if (amount <= BigDecimal.ZERO || amount > BigDecimal("9999999999.99")) return null
-        return PaymentParser.Payment(source, type, amount.setScale(2), merchant(lines, type), "high")
+        return PaymentParser.Payment(source, type, amount.setScale(2), merchant(lines, type), "high", text)
     }
 
     private fun merchant(lines: List<String>, type: String): String {
