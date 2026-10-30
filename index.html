@@ -22,11 +22,14 @@
       <div id="storage-error" class="error-banner" role="alert" hidden></div>
       <div id="android-error" class="error-banner" role="alert" hidden></div>
       <article id="android-setup" class="panel android-setup" hidden aria-labelledby="android-setup-heading">
-        <h2 id="android-setup-heading">开启支付通知自动记账</h2>
-        <p class="help-text">授予通知使用权后，自动识别微信和支付宝的支付、收款与转账通知。记录仅保存在本机，不上传。分类由关键词推测，可在明细中修改。</p>
-        <button type="button" class="primary-button" data-android-notifications>授予通知使用权</button>
+        <h2 id="android-setup-heading">开启支付自动记账</h2>
+        <p class="help-text">开启无障碍服务后，自动识别微信、支付宝中可见的支付结果、转账、已发红包与微信支付凭证，无需手动输入。通知使用权可作为补充。</p>
+        <p class="help-text" data-android-status role="status"></p>
+        <button type="button" class="primary-button" data-android-accessibility>开启无障碍自动记账</button>
+        <button type="button" class="plain-button" data-android-notifications>授予通知使用权（补充）</button>
         <button type="button" class="plain-button" data-android-battery>电池设置</button>
-        <p class="help-text">请关闭电池优化／允许自启动，并保持微信和支付宝通知开启。通知内容不完整时可能无法识别，请核对自动记录。</p>
+        <p class="help-text">数据只保存在本机，应用没有联网权限，不上传任何数据。仅读取微信、支付宝页面文字，不会点击或操作屏幕，可随时在系统设置中关闭。</p>
+        <p class="help-text">系统需要你首次手动授权。之后在支付页面显示时自动识别；隐藏金额或未打开的页面无法读取。请允许自启动，并按需关闭电池优化。</p>
       </article>
       <section class="overview" data-page="home" aria-labelledby="overview-heading">
         <div class="section-top"><h1 id="overview-heading">把日子，过得有数</h1><time id="today-label"></time></div>
@@ -91,9 +94,11 @@
       <section class="settings-page" data-page="settings" hidden aria-labelledby="settings-page-heading">
         <h1 id="settings-page-heading">设置</h1>
         <article id="android-settings" class="panel" hidden>
-          <h2>通知自动记账</h2>
-          <p class="help-text">仅识别微信和支付宝通知，数据保存在本机。关闭电池优化／允许自启动，保持微信和支付宝通知开启。可随时在系统设置中关闭通知使用权。</p>
-          <button type="button" class="primary-button" data-android-notifications>通知使用权</button>
+          <h2>支付自动记账</h2>
+          <p class="help-text" data-android-status role="status"></p>
+          <p class="help-text">识别微信、支付宝可见的支付页面，通知作为补充。数据只保存在本机，应用没有联网权限，不上传任何数据，不会点击或操作屏幕。可随时在系统设置中关闭服务。</p>
+          <button type="button" class="primary-button" data-android-accessibility>无障碍自动记账</button>
+          <button type="button" class="plain-button" data-android-notifications>通知使用权（补充）</button>
           <button type="button" class="plain-button" data-android-battery>电池设置</button>
         </article>
         <article class="panel budget-settings">

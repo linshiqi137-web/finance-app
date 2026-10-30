@@ -3,10 +3,9 @@ package com.xiaonagi.jizhang
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.security.MessageDigest
 import java.util.UUID
 
-/** Both listener and JS bridge use this process-wide lock; ack keeps recent dedupe keys. */
+/** Both capture services and JS bridge use this process-wide lock; ack keeps dedupe keys. */
 class TransactionQueue(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("payment_queue", Context.MODE_PRIVATE)
 
@@ -15,21 +14,20 @@ class TransactionQueue(context: Context) {
     fun enqueue(packageName: String, text: String, payment: PaymentParser.Payment, timestamp: Long): Boolean = synchronized(lock) {
         val state = read()
         val now = System.currentTimeMillis()
-        val recent = JSONArray()
-        val keyText = "$packageName|${payment.amount.toPlainString()}|${text.trim().replace(Regex("\\s+"), " ")}"
-        val key = MessageDigest.getInstance("SHA-256").digest(keyText.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-        var duplicate = false
+        require(packageName == when (payment.source) {
+            "wechat" -> "com.tencent.mm"
+            "alipay" -> "com.eg.android.AlipayGphone"
+            else -> error("未知支付来源")
+        })
         val previous = state.getJSONArray("recent")
-        for (i in 0 until previous.length()) {
+        val entries = (0 until previous.length()).map { i ->
             val item = previous.getJSONObject(i)
-            if (now - item.getLong("seenAt") <= DEDUPE_MS) {
-                recent.put(item)
-                if (item.getString("key") == key) duplicate = true
-            }
+            PaymentDeduper.Entry(item.getString("key"), item.getLong("seenAt"))
         }
-        if (duplicate) return@synchronized false
-        recent.put(JSONObject().put("key", key).put("seenAt", now))
+        val decision = PaymentDeduper.check(entries, PaymentDeduper.key(payment.source, payment.amount, payment.type), now)
+        if (decision.duplicate) return@synchronized false
+        val recent = JSONArray()
+        for (item in decision.recent) recent.put(JSONObject().put("key", item.key).put("seenAt", item.seenAt))
         state.getJSONArray("pending").put(JSONObject()
             .put("id", UUID.randomUUID().toString())
             .put("source", payment.source).put("type", payment.type)
@@ -60,6 +58,5 @@ class TransactionQueue(context: Context) {
 
     companion object {
         private val lock = Any()
-        private const val DEDUPE_MS = 120_000L
     }
 }

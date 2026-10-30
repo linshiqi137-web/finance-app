@@ -111,7 +111,7 @@ export function saveImportedTransactions(incoming) {
 
 // One durable write before native ack. Stable IDs also cover a crash between save and ack.
 export function saveNotificationTransactions(pending) {
-  if (!Array.isArray(pending)) throw new Error('通知队列格式异常，尚未确认任何通知。');
+  if (!Array.isArray(pending)) throw new Error('自动记账队列格式异常，尚未确认任何记录。');
   const state = loadState();
   const seen = new Set(state.transactions.map(item => item.id));
   const incoming = [];
@@ -121,9 +121,9 @@ export function saveNotificationTransactions(pending) {
         !['wechat', 'alipay'].includes(item.source) || !['expense', 'income', 'transfer'].includes(item.type) ||
         !validMoney(item.amount) || item.amount === 0 || !Number.isSafeInteger(item.timestamp) ||
         !['high', 'low'].includes(item.confidence) || typeof item.text !== 'string' ||
-        typeof item.counterparty !== 'string') throw new Error('通知记录格式异常，请保留数据后重试。');
+        typeof item.counterparty !== 'string') throw new Error('自动记账记录格式异常，请保留数据后重试。');
     const date = new Date(item.timestamp);
-    if (!Number.isFinite(date.getTime())) throw new Error('通知日期无效。');
+    if (!Number.isFinite(date.getTime())) throw new Error('自动记账日期无效。');
     const id = `notification:${item.source}:${item.id}`;
     ids.push(item.id);
     if (seen.has(id)) continue;

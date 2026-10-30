@@ -103,8 +103,8 @@ node tests/fixtures/generate-gbk.mjs
 
 `js/importers.js` 导出纯解析器 `parseWechatCsv`、`parseAlipayCsv`、解码器 `decodeBillBuffer`、`dedupKey` 和 `mergeTransactions`。合并函数返回 `{ added, skipped }`：`added` 是新增记录数组，`skipped` 是重复记录数量，不修改输入或存储。
 
-新增离线资源时，需要更新 `sw.js` 的 `SHELL` 列表并递增缓存版本。当前为 `little-ledger-shell-v3`，激活时清理旧版本缓存，保留其他应用的缓存。
+新增离线资源时，需要更新 `sw.js` 的 `SHELL` 列表并递增缓存版本。当前为 `little-ledger-shell-v4`，激活时清理旧版本缓存，保留其他应用的缓存。
 
-## Android APK（Phase 2）
+## Android APK v0.3.0
 
-新增原生 Android 工程 [`android/`](android/README.md)，应用名「小凪记账」。支持微信／支付宝通知在本机排队、返回应用时自动记账、可编辑分类、通知使用权引导，以及系统文件导入与备份。浏览器版不依赖 AndroidBridge，使用方式保持不变。构建步骤、解析与去重规则、测试和手机设置详见 Android 说明。
+原生 Android 工程 [`android/`](android/README.md)，应用名「小凪记账」。支持通过无障碍识别微信／支付宝可见的支付、转账与微信红包页面、微信支付凭证，通知作为补充；两个渠道共享三分钟去重，返回应用后自动入账并显示「自动」。首次引导提供无障碍设置入口、开启状态与本机隐私说明，应用没有联网权限。浏览器版不依赖 AndroidBridge，使用方式保持不变。构建步骤、解析与去重规则、测试和手机设置详见 Android 说明。

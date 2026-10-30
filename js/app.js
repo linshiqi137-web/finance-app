@@ -111,7 +111,7 @@ function transactionRow(item, actions = false) {
     const badge = document.createElement('span');
     badge.className = 'source-tag auto-tag';
     badge.textContent = '自动';
-    badge.title = item.confidence === 'low' ? '通知信息有限，请核对金额和分类' : '来自支付通知，分类可编辑';
+    badge.title = item.confidence === 'low' ? '支付信息有限，请核对金额和分类' : '自动识别支付信息，分类可编辑';
     source.after(badge);
   }
   const amount = document.createElement('span');
@@ -511,7 +511,12 @@ window.addEventListener('storage', event => {
 function syncAndroid() {
   if (!androidBridge) return;
   try {
-    $('#android-setup').hidden = androidBridge.isNotificationAccessGranted();
+    const accessibilityEnabled = androidBridge.isAccessibilityServiceEnabled?.() ?? false;
+    const notificationEnabled = androidBridge.isNotificationAccessGranted();
+    $('#android-setup').hidden = accessibilityEnabled;
+    document.querySelectorAll('[data-android-status]').forEach(element => {
+      element.textContent = `无障碍自动记账：${accessibilityEnabled ? '已开启' : '未开启'} · 通知补充：${notificationEnabled ? '已开启' : '未开启'}`;
+    });
     if (!available) return;
     const result = saveNotificationTransactions(JSON.parse(androidBridge.getPendingTransactions()));
     state = result.state;
@@ -520,7 +525,7 @@ function syncAndroid() {
     if (result.added) { render(); toast(`已自动记下 ${result.added} 笔，分类可在明细中修改`); }
   } catch (error) {
     render();
-    showError($('#android-error'), `自动记账暂未完成：${error.message || error}。通知会保留以便重试。`);
+    showError($('#android-error'), `自动记账暂未完成：${error.message || error}。待入账记录会保留以便重试。`);
     return;
   }
   showError($('#android-error'));
@@ -530,6 +535,10 @@ if (androidBridge) {
   $('.brand > span:last-child').firstChild.textContent = appName;
   $('.brand').setAttribute('aria-label', `${appName}首页`);
   $('#android-settings').hidden = false;
+  document.querySelectorAll('[data-android-accessibility]').forEach(button => {
+    button.disabled = !androidBridge.openAccessibilitySettings;
+    button.addEventListener('click', () => androidBridge.openAccessibilitySettings());
+  });
   document.querySelectorAll('[data-android-notifications]').forEach(button =>
     button.addEventListener('click', () => androidBridge.openNotificationSettings()));
   document.querySelectorAll('[data-android-battery]').forEach(button =>

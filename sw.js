@@ -1,4 +1,4 @@
-const CACHE = 'little-ledger-shell-v3';
+const CACHE = 'little-ledger-shell-v4';
 const SHELL = ['./', './index.html', './styles.css', './js/app.js', './js/budget.js', './js/store.js', './js/importers.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {

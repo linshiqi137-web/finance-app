@@ -2,7 +2,10 @@ package com.xiaonagi.jizhang
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.Context
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import android.webkit.JavascriptInterface
 
 class AndroidBridge(private val activity: MainActivity) {
@@ -24,6 +27,21 @@ class AndroidBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun openNotificationSettings() {
         activity.openSettings(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    }
+
+    @JavascriptInterface
+    fun isAccessibilityServiceEnabled(): Boolean {
+        val manager = activity.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val target = ComponentName(activity, PaymentAccessibilityService::class.java)
+        return manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
+            val service = it.resolveInfo.serviceInfo
+            ComponentName(service.packageName, service.name) == target
+        }
+    }
+
+    @JavascriptInterface
+    fun openAccessibilitySettings() {
+        activity.openSettings(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     @JavascriptInterface

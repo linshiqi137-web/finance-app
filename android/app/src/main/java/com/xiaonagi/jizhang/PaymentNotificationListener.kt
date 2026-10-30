@@ -15,7 +15,8 @@ class PaymentNotificationListener : NotificationListenerService() {
         val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n").orEmpty()
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val text = listOf(title, body.ifBlank { lines }).filter { it.isNotBlank() }.distinct().joinToString("\n")
-        val payment = PaymentParser.parse(sbn.packageName, text) ?: return
+        val payment = AccessibilityPaymentParser.parse(sbn.packageName, text.lines())
+            ?: PaymentParser.parse(sbn.packageName, text) ?: return
         // No raw notification content is logged, transmitted, or sent to another app.
         try {
             TransactionQueue(this).enqueue(sbn.packageName, text, payment, sbn.postTime)
